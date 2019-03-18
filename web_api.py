@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
-import json
-import uuid
-import requests
 import hashlib
 import time
+import uuid
 
-import config_parser
+import requests
 
 YOUDAO_URL = 'http://openapi.youdao.com/api'
 
@@ -28,7 +26,11 @@ def do_request(data):
     return requests.post(YOUDAO_URL, data=data, headers=headers)
 
 
-def connect(app_key, app_secret, query="Hello world!"):
+def connect(config, query="Hello world!"):
+    app_key = config.APP_KEY
+    app_secret = config.APP_SECRET
+    if not app_key or not app_secret:
+        return None
     data = {'from': 'EN', 'to': 'zh-CHS', 'signType': 'v3'}
     curtime = str(int(time.time()))
     data['curtime'] = curtime
@@ -44,8 +46,3 @@ def connect(app_key, app_secret, query="Hello world!"):
     return response.content
 
 
-if __name__ == "__main__":
-    config = config_parser.Configuration()
-    result = connect(config.APP_KEY, config.APP_SECRET)
-    result = json.loads(result, encoding="utf8")
-    print(result)
