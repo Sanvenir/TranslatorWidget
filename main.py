@@ -38,16 +38,15 @@
 ##
 #############################################################################
 import re
-
-import PySide2
-import json
 import sys
 
+import PySide2
 from PySide2 import QtWidgets, QtCore
-from PySide2.QtCore import QFile, SIGNAL, SLOT, QObject, QPoint, QEvent
+from PySide2.QtCore import QFile, SIGNAL, SLOT, QObject, QPoint
 from PySide2.QtGui import QGuiApplication
 from PySide2.QtUiTools import QUiLoader
-from PySide2.QtWidgets import QMainWindow, QTextEdit, QMessageBox, QCheckBox, QSlider, QApplication
+from PySide2.QtWidgets import QMainWindow, QTextEdit, QMessageBox, QCheckBox, QSlider, QApplication, QLabel, QFrame, \
+    QDesktopWidget
 
 import config_parser
 import threads
@@ -68,11 +67,14 @@ class MainWindow(QMainWindow):
 
             # Components
             self.clipboard = QGuiApplication.clipboard()
+            self.desktop = QDesktopWidget()
             self.origin_text = self.findChild(QTextEdit, "originEdit")
-            self.trans_text = self.findChild(QTextEdit, "transEdit")
+            self.trans_label = self.findChild(QLabel, "transLabel")
             self.enable_box = self.findChild(QCheckBox, "enableBox")
             self.on_top_box = self.findChild(QCheckBox, "onTopBox")
             self.transparent_slider = self.findChild(QSlider, "transparentSlider")
+            self.show_box = self.findChild(QCheckBox, "showBox")
+            self.interface_frame = self.findChild(QFrame, "interfaceFrame")
 
             # Instances
             self.config = config_parser.Configuration()
@@ -80,11 +82,13 @@ class MainWindow(QMainWindow):
             self.translate_thread = threads.TranslatorThread(
                 self.config, self.trans_request, self.get_origin_text, self)
 
-            assert isinstance(self.trans_text, QTextEdit)
+            assert isinstance(self.trans_label, QLabel)
             assert isinstance(self.origin_text, QTextEdit)
             assert isinstance(self.enable_box, QCheckBox)
             assert isinstance(self.on_top_box, QCheckBox)
             assert isinstance(self.transparent_slider, QSlider)
+            assert isinstance(self.show_box, QCheckBox)
+            assert isinstance(self.interface_frame, QFrame)
 
             # initialize
             self._initialize()
@@ -102,6 +106,10 @@ class MainWindow(QMainWindow):
                             self, SLOT("_set_transparent()"))
             QObject.connect(self.clipboard, SIGNAL("dataChanged()"),
                             self, SLOT("update_text()"))
+            QObject.connect(self.show_box, SIGNAL("stateChanged(int)"),
+                            self, SLOT("_show_interface()"))
+            QObject.connect(self.desktop, SIGNAL("resized(int)"),
+                            self, SLOT("_set_geometry()"))
 
             # Properties
             self.is_grab = False
@@ -116,7 +124,8 @@ class MainWindow(QMainWindow):
         return self.origin_text.toPlainText()
 
     def translate(self):
-        self.trans_text.setText("Translating...")
+        assert isinstance(self.trans_label, QLabel)
+        self.trans_label.setText("Translating...")
         if self.translate_thread.isRunning():
             self.translate_thread.exit(self.translate_thread.exec_())
         self.translate_thread.start()
@@ -144,10 +153,10 @@ class MainWindow(QMainWindow):
             self.move(self.pos() + QPoint(pos.x() - self.geometry().left(), 0))
         elif pos.x() > self.geometry().right():
             self.move(self.pos() + QPoint(pos.x() - self.geometry().right(), 0))
-        if pos.y() > self.geometry().bottom():
-            self.move(self.pos() + QPoint(0, pos.y() - self.geometry().bottom()))
-        elif pos.y() < self.geometry().top():
-            self.move(self.pos() + QPoint(0, pos.y() - self.geometry().top()))
+        # if pos.y() > self.geometry().bottom():
+        #     self.move(self.pos() + QPoint(0, pos.y() - self.geometry().bottom()))
+        # elif pos.y() < self.geometry().top():
+        #     self.move(self.pos() + QPoint(0, pos.y() - self.geometry().top()))
 
     def mouseReleaseEvent(self, event:PySide2.QtGui.QMouseEvent):
         self.is_grab = False
@@ -155,17 +164,33 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event: PySide2.QtGui.QCloseEvent):
         app.exit()
 
+    def _show_interface(self):
+        assert isinstance(self.show_box, QCheckBox)
+        assert isinstance(self.interface_frame, QFrame)
+        if self.show_box.isChecked():
+            self.interface_frame.show()
+        else:
+            self.interface_frame.hide()
+
     def _initialize(self):
-        self.setWindowFlags(QtCore.Qt.Dialog)
-        self.setGeometry(0, 0, QApplication.desktop().width() // 10, QApplication.desktop().height() // 2)
-        # self.setAttribute(QtCore.Qt.WA_TranslucentBackground, True)
+        self.setWindowFlags(QtCore.Qt.Dialog | QtCore.Qt.FramelessWindowHint)
+        self.setAttribute(QtCore.Qt.WA_TranslucentBackground, True)
+        self._set_geometry()
         self._set_enabled()
         self._set_on_top()
         self._set_transparent()
+        self._show_interface()
         self.show()
 
+    def _set_geometry(self):
+        screen = QApplication.primaryScreen().geometry()
+        self.setGeometry(0, 0, max(500, screen.width() // 5), screen.height())
+
     def _translate(self):
-        self.trans_text.setText(self._get_translate())
+        assert isinstance(self.trans_label, QLabel)
+        text = self._get_translate()
+        self.trans_label.setText(text)
+        self.trans_label.setSelection(0, len(text))
 
     def _get_translate(self):
         result = self.translate_thread.result
@@ -174,7 +199,7 @@ class MainWindow(QMainWindow):
         if result.get("basic") and result.get("basic").get("explains"):
             return "\n".join(result.get("basic").get("explains"))
         if not result.get("translation"):
-            self.trans_text.setText("No result")
+            self.trans_label.setText("No result")
             return "No result"
         return "\n".join(result.get("translation"))
 
