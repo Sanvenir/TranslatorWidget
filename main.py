@@ -37,15 +37,17 @@
 ## $QT_END_LICENSE$
 ##
 #############################################################################
+import re
+
 import PySide2
 import json
 import sys
 
 from PySide2 import QtWidgets, QtCore
-from PySide2.QtCore import QFile, SIGNAL, SLOT, QObject
+from PySide2.QtCore import QFile, SIGNAL, SLOT, QObject, QPoint, QEvent
 from PySide2.QtGui import QGuiApplication
 from PySide2.QtUiTools import QUiLoader
-from PySide2.QtWidgets import QMainWindow, QTextEdit, QMessageBox, QCheckBox, QSlider
+from PySide2.QtWidgets import QMainWindow, QTextEdit, QMessageBox, QCheckBox, QSlider, QApplication
 
 import config_parser
 import threads
@@ -101,6 +103,9 @@ class MainWindow(QMainWindow):
             QObject.connect(self.clipboard, SIGNAL("dataChanged()"),
                             self, SLOT("update_text()"))
 
+            # Properties
+            self.is_grab = False
+
         except TranslatorException as e:
             err_box = QMessageBox(self.parent())
             err_box.setText(str(e))
@@ -121,14 +126,38 @@ class MainWindow(QMainWindow):
 
     def get_clip_text(self):
         text = self.clipboard.text()
-        text = " ".join(text.split())
+        text = re.sub(r"[#]+ ", " ", text)
+        text = re.sub(r"[ \t]+", " ", text)
+        text = re.sub(r"\n\s*\n", "%linebreak", text)
+        text = re.sub(r"[ \n]+", " ", text)
+        text = re.sub(r"(%linebreak)+", "\n", text)
         return text
+
+    def mousePressEvent(self, event:PySide2.QtGui.QMouseEvent):
+        self.is_grab = True
+
+    def mouseMoveEvent(self, event:PySide2.QtGui.QMouseEvent):
+        if not self.is_grab:
+            return
+        pos = event.screenPos().toPoint()
+        if pos.x() < self.geometry().left():
+            self.move(self.pos() + QPoint(pos.x() - self.geometry().left(), 0))
+        elif pos.x() > self.geometry().right():
+            self.move(self.pos() + QPoint(pos.x() - self.geometry().right(), 0))
+        if pos.y() > self.geometry().bottom():
+            self.move(self.pos() + QPoint(0, pos.y() - self.geometry().bottom()))
+        elif pos.y() < self.geometry().top():
+            self.move(self.pos() + QPoint(0, pos.y() - self.geometry().top()))
+
+    def mouseReleaseEvent(self, event:PySide2.QtGui.QMouseEvent):
+        self.is_grab = False
 
     def closeEvent(self, event: PySide2.QtGui.QCloseEvent):
         app.exit()
 
     def _initialize(self):
         self.setWindowFlags(QtCore.Qt.Dialog)
+        self.setGeometry(0, 0, QApplication.desktop().width() // 10, QApplication.desktop().height() // 2)
         # self.setAttribute(QtCore.Qt.WA_TranslucentBackground, True)
         self._set_enabled()
         self._set_on_top()
@@ -151,7 +180,7 @@ class MainWindow(QMainWindow):
 
     def _set_transparent(self):
         assert isinstance(self.transparent_slider, QSlider)
-        self.setWindowOpacity(1 - self.transparent_slider.value() / self.transparent_slider.maximum())
+        self.setWindowOpacity(1 - self.transparent_slider.value() / 100)
 
     def _set_on_top(self):
         assert isinstance(self.on_top_box, QCheckBox)
