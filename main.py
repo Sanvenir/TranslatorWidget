@@ -196,12 +196,7 @@ class MainWindow(QMainWindow):
         result = self.translate_thread.result
         if result is None:
             return "No result"
-        if result.get("basic") and result.get("basic").get("explains"):
-            return "\n".join(result.get("basic").get("explains"))
-        if not result.get("translation"):
-            self.trans_label.setText("No result")
-            return "No result"
-        return "\n".join(result.get("translation"))
+        return result
 
     def _set_transparent(self):
         assert isinstance(self.transparent_slider, QSlider)

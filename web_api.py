@@ -16,7 +16,7 @@ class WebRequest:
     def __init__(self, config):
         self.config = config
 
-    def connect(self, query) -> dict or None:
+    def connect(self, query) -> str or None:
         raise NotImplementedError()
 
 
@@ -66,7 +66,7 @@ class YouDaoRequest(WebRequest):
         app_secret = self.config.APP_SECRET
         if not app_key or not app_secret:
             raise ConfigException()
-        data = {'from': 'EN', 'to': 'zh-CHS', 'signType': 'v3'}
+        data = {'from': 'auto', 'to': 'zh-CHS', 'signType': 'v3'}
         curtime = str(int(self.get_web_time()))
         data['curtime'] = curtime
         salt = str(uuid.uuid1())
@@ -77,7 +77,12 @@ class YouDaoRequest(WebRequest):
         data['salt'] = salt
         data['sign'] = sign
         response = self.do_request(data)
-        return json.loads(response.content.decode("utf8"))
+        result = json.loads(response.content.decode("utf8"))
+        if result.get("basic") and result.get("basic").get("explains"):
+            return "\n".join(result.get("basic").get("explains"))
+        if not result.get("translation"):
+            return None
+        return "\n".join(result.get("translation"))
 
 
 def test():
