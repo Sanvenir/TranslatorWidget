@@ -37,7 +37,7 @@
 ## $QT_END_LICENSE$
 ##
 #############################################################################
-
+import PySide2
 import json
 import sys
 
@@ -45,44 +45,69 @@ from PySide2 import QtWidgets, QtCore
 from PySide2.QtCore import QFile, SIGNAL, SLOT, QObject
 from PySide2.QtGui import QGuiApplication
 from PySide2.QtUiTools import QUiLoader
-from PySide2.QtWidgets import QMainWindow, QTextEdit
+from PySide2.QtWidgets import QMainWindow, QTextEdit, QMessageBox, QCheckBox, QSlider
 
 import config_parser
 import threads
+import web_api
+from exceptions import TranslatorException
 
 
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
-        super().__init__(parent)
-        loader = QUiLoader()
-        file = QFile("forms/MainWindow.ui")
-        file.open(QFile.ReadOnly)
-        ui = loader.load(file, self)
-        file.close()
-        self.setLayout(ui.layout())
+        try:
+            super().__init__(parent)
+            loader = QUiLoader()
+            file = QFile("forms/MainWindow.ui")
+            file.open(QFile.ReadOnly)
+            ui = loader.load(file, self)
+            file.close()
+            self.setLayout(ui.layout())
 
-        # Components
-        self.clipboard = QGuiApplication.clipboard()
-        self.origin_text = self.findChild(QTextEdit, "originEdit")
-        self.trans_text = self.findChild(QTextEdit, "transEdit")
-        self.config = config_parser.Configuration()
-        self.translate_thread = threads.TranslatorThread(self.config, self._get_origin_text, self)
+            # Components
+            self.clipboard = QGuiApplication.clipboard()
+            self.origin_text = self.findChild(QTextEdit, "originEdit")
+            self.trans_text = self.findChild(QTextEdit, "transEdit")
+            self.enable_box = self.findChild(QCheckBox, "enableBox")
+            self.on_top_box = self.findChild(QCheckBox, "onTopBox")
+            self.transparent_slider = self.findChild(QSlider, "transparentSlider")
 
-        assert isinstance(self.trans_text, QTextEdit)
-        assert isinstance(self.origin_text, QTextEdit)
+            # Instances
+            self.config = config_parser.Configuration()
+            self.trans_request = web_api.YouDaoRequest(self.config)
+            self.translate_thread = threads.TranslatorThread(
+                self.config, self.trans_request, self.get_origin_text, self)
 
-        # initialize
-        self._initialize()
+            assert isinstance(self.trans_text, QTextEdit)
+            assert isinstance(self.origin_text, QTextEdit)
+            assert isinstance(self.enable_box, QCheckBox)
+            assert isinstance(self.on_top_box, QCheckBox)
+            assert isinstance(self.transparent_slider, QSlider)
 
-        # register
-        QObject.connect(self.origin_text, SIGNAL("textChanged()"),
-                        self, SLOT("translate()"))
-        QObject.connect(self.clipboard, SIGNAL("dataChanged()"),
-                        self, SLOT("_update_text()"))
-        QObject.connect(self.translate_thread, SIGNAL("finished()"),
-                        self, SLOT("_translate()"))
+            # initialize
+            self._initialize()
 
-    def _get_origin_text(self):
+            # register
+            QObject.connect(self.enable_box, SIGNAL("stateChanged(int)"),
+                            self, SLOT("_set_enabled()"))
+            QObject.connect(self.on_top_box, SIGNAL("stateChanged(int)"),
+                            self, SLOT("_set_on_top()"))
+            QObject.connect(self.origin_text, SIGNAL("textChanged()"),
+                            self, SLOT("translate()"))
+            QObject.connect(self.translate_thread, SIGNAL("finished()"),
+                            self, SLOT("_translate()"))
+            QObject.connect(self.transparent_slider, SIGNAL("valueChanged(int)"),
+                            self, SLOT("_set_transparent()"))
+            QObject.connect(self.clipboard, SIGNAL("dataChanged()"),
+                            self, SLOT("update_text()"))
+
+        except TranslatorException as e:
+            err_box = QMessageBox(self.parent())
+            err_box.setText(str(e))
+            err_box.exec_()
+            sys.exit(-1)
+
+    def get_origin_text(self):
         return self.origin_text.toPlainText()
 
     def translate(self):
@@ -91,23 +116,7 @@ class MainWindow(QMainWindow):
             self.translate_thread.exit(self.translate_thread.exec_())
         self.translate_thread.start()
 
-    def _translate(self):
-        self.trans_text.setText(self._get_translate())
-
-    def _get_translate(self):
-        if self.translate_thread.result is None:
-            return "No result"
-        result = self.translate_thread.result
-        result = json.loads(result, encoding="utf8")
-        if not result.get("translation"):
-            self.trans_text.setText("No result")
-            return "No result"
-        return result.get("translation")[0]
-
-    def _initialize(self):
-        self.setWindowFlags(QtCore.Qt.Widget | QtCore.Qt.WindowStaysOnTopHint)
-
-    def _update_text(self):
+    def update_text(self):
         self.origin_text.setText(self.get_clip_text())
 
     def get_clip_text(self):
@@ -115,9 +124,45 @@ class MainWindow(QMainWindow):
         text = " ".join(text.split())
         return text
 
+    def closeEvent(self, event: PySide2.QtGui.QCloseEvent):
+        app.exit()
+
+    def _initialize(self):
+        self.setWindowFlags(QtCore.Qt.Dialog)
+        # self.setAttribute(QtCore.Qt.WA_TranslucentBackground, True)
+        self._set_enabled()
+        self._set_on_top()
+        self._set_transparent()
+        self.show()
+
+    def _translate(self):
+        self.trans_text.setText(self._get_translate())
+
+    def _get_translate(self):
+        result = self.translate_thread.result
+        if result is None:
+            return "No result"
+        if not result.get("translation"):
+            self.trans_text.setText("No result")
+            return "No result"
+        return result.get("translation")[0]
+
+    def _set_transparent(self):
+        assert isinstance(self.transparent_slider, QSlider)
+        self.setWindowOpacity(1 - self.transparent_slider.value() / self.transparent_slider.maximum())
+
+    def _set_on_top(self):
+        assert isinstance(self.on_top_box, QCheckBox)
+        self.hide()
+        self.setWindowFlag(QtCore.Qt.WindowStaysOnTopHint, self.on_top_box.isChecked())
+        self.show()
+
+    def _set_enabled(self):
+        assert isinstance(self.enable_box, QCheckBox)
+        self.clipboard.blockSignals(not self.enable_box.isChecked())
+
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
     main_window = MainWindow()
-    main_window.show()
     sys.exit(app.exec_())
