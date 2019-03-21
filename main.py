@@ -46,7 +46,7 @@ from PySide2.QtCore import QFile, SIGNAL, SLOT, QObject, QPoint
 from PySide2.QtGui import QGuiApplication
 from PySide2.QtUiTools import QUiLoader
 from PySide2.QtWidgets import QMainWindow, QTextEdit, QMessageBox, QCheckBox, QSlider, QApplication, QLabel, QFrame, \
-    QDesktopWidget
+    QDesktopWidget, QPushButton
 
 import config_parser
 import threads
@@ -75,6 +75,7 @@ class MainWindow(QMainWindow):
             self.transparent_slider = self.findChild(QSlider, "transparentSlider")
             self.show_box = self.findChild(QCheckBox, "showBox")
             self.interface_frame = self.findChild(QFrame, "interfaceFrame")
+            self.exit_button = self.findChild(QPushButton, "exitButton")
 
             # Instances
             self.config = config_parser.Configuration()
@@ -89,6 +90,7 @@ class MainWindow(QMainWindow):
             assert isinstance(self.transparent_slider, QSlider)
             assert isinstance(self.show_box, QCheckBox)
             assert isinstance(self.interface_frame, QFrame)
+            assert isinstance(self.exit_button, QPushButton)
 
             # initialize
             self._initialize()
@@ -110,6 +112,8 @@ class MainWindow(QMainWindow):
                             self, SLOT("_show_interface()"))
             QObject.connect(self.desktop, SIGNAL("resized(int)"),
                             self, SLOT("_set_geometry()"))
+            QObject.connect(self.exit_button, SIGNAL("clicked()"),
+                            self, SLOT("close()"))
 
             # Properties
             self.is_grab = False
@@ -142,10 +146,10 @@ class MainWindow(QMainWindow):
         text = re.sub(r"(%linebreak)+", "\n", text)
         return text
 
-    def mousePressEvent(self, event:PySide2.QtGui.QMouseEvent):
+    def mousePressEvent(self, event: PySide2.QtGui.QMouseEvent):
         self.is_grab = True
 
-    def mouseMoveEvent(self, event:PySide2.QtGui.QMouseEvent):
+    def mouseMoveEvent(self, event: PySide2.QtGui.QMouseEvent):
         if not self.is_grab:
             return
         pos = event.screenPos().toPoint()
@@ -158,11 +162,11 @@ class MainWindow(QMainWindow):
         # elif pos.y() < self.geometry().top():
         #     self.move(self.pos() + QPoint(0, pos.y() - self.geometry().top()))
 
-    def mouseReleaseEvent(self, event:PySide2.QtGui.QMouseEvent):
+    def mouseReleaseEvent(self, event: PySide2.QtGui.QMouseEvent):
         self.is_grab = False
 
     def closeEvent(self, event: PySide2.QtGui.QCloseEvent):
-        app.exit()
+        sys.exit(0)
 
     def _show_interface(self):
         assert isinstance(self.show_box, QCheckBox)
@@ -173,7 +177,7 @@ class MainWindow(QMainWindow):
             self.interface_frame.hide()
 
     def _initialize(self):
-        self.setWindowFlags(QtCore.Qt.Dialog | QtCore.Qt.FramelessWindowHint)
+        self.setWindowFlags(QtCore.Qt.Tool | QtCore.Qt.FramelessWindowHint)
         self.setAttribute(QtCore.Qt.WA_TranslucentBackground, True)
         self._set_geometry()
         self._set_enabled()
