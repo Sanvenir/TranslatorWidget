@@ -39,6 +39,7 @@
 #############################################################################
 import re
 import sys
+import os
 
 import PySide2
 from PySide2 import QtWidgets, QtCore
@@ -53,13 +54,15 @@ import threads
 import web_api
 from exceptions import TranslatorException
 
+os.chdir(sys.path[0])
+
 
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         try:
             super().__init__(parent)
             loader = QUiLoader()
-            file = QFile("forms/MainWindow.ui")
+            file = QFile(os.path.abspath("forms/MainWindow.ui"))
             file.open(QFile.ReadOnly)
             ui = loader.load(file, self)
             file.close()
@@ -76,6 +79,8 @@ class MainWindow(QMainWindow):
             self.show_box = self.findChild(QCheckBox, "showBox")
             self.interface_frame = self.findChild(QFrame, "interfaceFrame")
             self.exit_button = self.findChild(QPushButton, "exitButton")
+
+            self.currentScreen = 0
 
             # Instances
             self.config = config_parser.Configuration()
@@ -94,6 +99,7 @@ class MainWindow(QMainWindow):
 
             # initialize
             self._initialize()
+            # self.trans_label.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents, True);
 
             # register
             QObject.connect(self.enable_box, SIGNAL("stateChanged(int)"),
@@ -153,10 +159,23 @@ class MainWindow(QMainWindow):
         if not self.is_grab:
             return
         pos = event.screenPos().toPoint()
+
+        currentScreen = self.currentScreen
+        print(self.currentScreen)
+        for i in range(self.desktop.screenCount()):
+            if self.desktop.screenGeometry(i).left() < pos.x() < self.desktop.screenGeometry(i).right():
+                currentScreen = i
+                break
+        if currentScreen != self.currentScreen:
+            self.currentScreen = currentScreen
+            screen = self.desktop.screenGeometry(currentScreen)
+            self.setGeometry(self.x(), screen.top(), self.width(), screen.height())
+
         if pos.x() < self.geometry().left():
             self.move(self.pos() + QPoint(pos.x() - self.geometry().left(), 0))
         elif pos.x() > self.geometry().right():
             self.move(self.pos() + QPoint(pos.x() - self.geometry().right(), 0))
+
         # if pos.y() > self.geometry().bottom():
         #     self.move(self.pos() + QPoint(0, pos.y() - self.geometry().bottom()))
         # elif pos.y() < self.geometry().top():
@@ -187,8 +206,12 @@ class MainWindow(QMainWindow):
         self.show()
 
     def _set_geometry(self):
-        screen = QApplication.primaryScreen().geometry()
-        self.setGeometry(0, 0, max(500, screen.width() // 5), screen.height())
+        screen = self.desktop.screenGeometry(self.currentScreen)
+        self.setGeometry(
+            screen.left(),
+            screen.top(),
+            max(500, screen.width() // 5),
+            screen.height())
 
     def _translate(self):
         assert isinstance(self.trans_label, QLabel)
