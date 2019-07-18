@@ -33,7 +33,7 @@ You need to apply a [YouDao translator instance](https://ai.youdao.com/gw.s)
 
 Run
 ``
-python main.py
+python app.py
 ``
 to enter the main program.
 
