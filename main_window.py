@@ -1,60 +1,20 @@
-#############################################################################
-##
-## Copyright (C) 2016 The Qt Company Ltd.
-## Contact: http://www.qt.io/licensing/
-##
-## This file is part of the Qt for Python examples of the Qt Toolkit.
-##
-## $QT_BEGIN_LICENSE:BSD$
-## You may use this file under the terms of the BSD license as follows:
-##
-## "Redistribution and use in source and binary forms, with or without
-## modification, are permitted provided that the following conditions are
-## met:
-##   * Redistributions of source code must retain the above copyright
-##     notice, this list of conditions and the following disclaimer.
-##   * Redistributions in binary form must reproduce the above copyright
-##     notice, this list of conditions and the following disclaimer in
-##     the documentation and/or other materials provided with the
-##     distribution.
-##   * Neither the name of The Qt Company Ltd nor the names of its
-##     contributors may be used to endorse or promote products derived
-##     from this software without specific prior written permission.
-##
-##
-## THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-## "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-## LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-## A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-## OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-## SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-## LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-## DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-## THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-## (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-## OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
-##
-## $QT_END_LICENSE$
-##
-#############################################################################
+import os
 import re
 import sys
-import os
 
 import PySide2
-from PySide2 import QtWidgets, QtCore
-from PySide2.QtCore import QFile, SIGNAL, SLOT, QObject, QPoint
-from PySide2.QtGui import QGuiApplication
+from PySide2 import QtCore
+from PySide2.QtCore import QObject, SIGNAL, SLOT, QFile, QPoint
+from PySide2.QtGui import QGuiApplication, QIcon
 from PySide2.QtUiTools import QUiLoader
-from PySide2.QtWidgets import QMainWindow, QTextEdit, QMessageBox, QCheckBox, QSlider, QApplication, QLabel, QFrame, \
-    QDesktopWidget, QPushButton
+from PySide2.QtWidgets import QCheckBox, QFrame, QLabel, QSlider, QMessageBox, QTextEdit, QPushButton, QDesktopWidget, \
+    QMainWindow
 
 import config_parser
 import threads
 import web_api
 from exceptions import TranslatorException
-
-os.chdir(sys.path[0])
+from system_tray import SystemTray
 
 
 class MainWindow(QMainWindow):
@@ -73,14 +33,23 @@ class MainWindow(QMainWindow):
             self.desktop = QDesktopWidget()
             self.origin_text = self.findChild(QTextEdit, "originEdit")
             self.trans_label = self.findChild(QLabel, "transLabel")
+            self.transparent_slider = self.findChild(QSlider, "transparentSlider")
+            self.interface_frame = self.findChild(QFrame, "interfaceFrame")
+            self.hide_button = self.findChild(QPushButton, "hideButton")
             self.enable_box = self.findChild(QCheckBox, "enableBox")
             self.on_top_box = self.findChild(QCheckBox, "onTopBox")
-            self.transparent_slider = self.findChild(QSlider, "transparentSlider")
-            self.show_box = self.findChild(QCheckBox, "showBox")
-            self.interface_frame = self.findChild(QFrame, "interfaceFrame")
-            self.exit_button = self.findChild(QPushButton, "exitButton")
+            self.clear_button = self.findChild(QPushButton, "clearButton")
+
+            self.system_tray = SystemTray(self)
 
             self.currentScreen = 0
+            self.currentPosition = 0
+
+            self.is_on_top = True
+            self.is_enable = True
+            self.is_show_panel = True
+            self.is_not_fixed = True
+            self.is_grab = False
 
             # Instances
             self.config = config_parser.Configuration()
@@ -88,41 +57,27 @@ class MainWindow(QMainWindow):
             self.translate_thread = threads.TranslatorThread(
                 self.config, self.trans_request, self.get_origin_text, self)
 
-            assert isinstance(self.trans_label, QLabel)
-            assert isinstance(self.origin_text, QTextEdit)
-            assert isinstance(self.enable_box, QCheckBox)
-            assert isinstance(self.on_top_box, QCheckBox)
-            assert isinstance(self.transparent_slider, QSlider)
-            assert isinstance(self.show_box, QCheckBox)
-            assert isinstance(self.interface_frame, QFrame)
-            assert isinstance(self.exit_button, QPushButton)
-
             # initialize
             self._initialize()
             # self.trans_label.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents, True);
 
             # register
             QObject.connect(self.enable_box, SIGNAL("stateChanged(int)"),
-                            self, SLOT("_set_enabled()"))
+                            self, SLOT("_set_enabled(int)"))
             QObject.connect(self.on_top_box, SIGNAL("stateChanged(int)"),
-                            self, SLOT("_set_on_top()"))
+                            self, SLOT("_set_on_top(int)"))
             QObject.connect(self.origin_text, SIGNAL("textChanged()"),
                             self, SLOT("translate()"))
             QObject.connect(self.translate_thread, SIGNAL("finished()"),
                             self, SLOT("_translate()"))
             QObject.connect(self.transparent_slider, SIGNAL("valueChanged(int)"),
-                            self, SLOT("_set_transparent()"))
+                            self, SLOT("_set_transparent(int)"))
             QObject.connect(self.clipboard, SIGNAL("dataChanged()"),
                             self, SLOT("update_text()"))
-            QObject.connect(self.show_box, SIGNAL("stateChanged(int)"),
-                            self, SLOT("_show_interface()"))
             QObject.connect(self.desktop, SIGNAL("resized(int)"),
                             self, SLOT("_set_geometry()"))
-            QObject.connect(self.exit_button, SIGNAL("clicked()"),
-                            self, SLOT("close()"))
-
-            # Properties
-            self.is_grab = False
+            QObject.connect(self.hide_button, SIGNAL("clicked()"),
+                            self, SLOT("hide_interface()"))
 
         except TranslatorException as e:
             err_box = QMessageBox(self.parent())
@@ -135,6 +90,8 @@ class MainWindow(QMainWindow):
 
     def translate(self):
         assert isinstance(self.trans_label, QLabel)
+        if not self.get_origin_text():
+            return
         self.trans_label.setText("Translating...")
         if self.translate_thread.isRunning():
             self.translate_thread.exit(self.translate_thread.exec_())
@@ -176,33 +133,32 @@ class MainWindow(QMainWindow):
         elif pos.x() > self.geometry().right():
             self.move(self.pos() + QPoint(pos.x() - self.geometry().right(), 0))
 
-        # if pos.y() > self.geometry().bottom():
-        #     self.move(self.pos() + QPoint(0, pos.y() - self.geometry().bottom()))
-        # elif pos.y() < self.geometry().top():
-        #     self.move(self.pos() + QPoint(0, pos.y() - self.geometry().top()))
-
     def mouseReleaseEvent(self, event: PySide2.QtGui.QMouseEvent):
         self.is_grab = False
+
+    def enterEvent(self, event: PySide2.QtGui.QMouseEvent):
+        if self.is_show_panel or not self.is_not_fixed:
+            return
+        screen = self.desktop.screenGeometry(self.currentScreen)
+        if self.currentPosition == 0:
+            self.move(screen.right() - self.width(), self.y())
+            self.currentPosition = 1
+        else:
+            self.move(screen.left(), self.y())
+            self.currentPosition = 0
 
     def closeEvent(self, event: PySide2.QtGui.QCloseEvent):
         sys.exit(0)
 
-    def _show_interface(self):
-        assert isinstance(self.show_box, QCheckBox)
-        assert isinstance(self.interface_frame, QFrame)
-        if self.show_box.isChecked():
-            self.interface_frame.show()
-        else:
-            self.interface_frame.hide()
-
     def _initialize(self):
-        self.setWindowFlags(QtCore.Qt.Tool | QtCore.Qt.FramelessWindowHint)
+        self.setWindowFlags(QtCore.Qt.Tool | QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)
         self.setAttribute(QtCore.Qt.WA_TranslucentBackground, True)
+        # self.trans_label.enterEvent = self.mouse_move_in
         self._set_geometry()
-        self._set_enabled()
-        self._set_on_top()
-        self._set_transparent()
-        self._show_interface()
+        self._set_transparent(self.transparent_slider.value())
+        self.set_on_top(True)
+        self.set_enable(True)
+        self.show_interface(False)
         self.show()
 
     def _set_geometry(self):
@@ -225,22 +181,36 @@ class MainWindow(QMainWindow):
             return "No result"
         return result
 
-    def _set_transparent(self):
-        assert isinstance(self.transparent_slider, QSlider)
-        self.setWindowOpacity(1 - self.transparent_slider.value() / 100)
+    def _set_transparent(self, value):
+        self.setWindowOpacity(1 - value / 100)
 
-    def _set_on_top(self):
-        assert isinstance(self.on_top_box, QCheckBox)
+    def _set_on_top(self, state):
+        self.is_on_top = state
         self.hide()
-        self.setWindowFlag(QtCore.Qt.WindowStaysOnTopHint, self.on_top_box.isChecked())
+        self.setWindowFlag(QtCore.Qt.WindowStaysOnTopHint, state)
         self.show()
 
-    def _set_enabled(self):
+    def set_on_top(self, state):
+        self.on_top_box.setChecked(state)
+
+    def _set_enabled(self, state):
         assert isinstance(self.enable_box, QCheckBox)
-        self.clipboard.blockSignals(not self.enable_box.isChecked())
+        self.is_enable = state
+        self.clipboard.blockSignals(not state)
 
+    def set_enable(self, state):
+        self.enable_box.setChecked(state)
 
-if __name__ == "__main__":
-    app = QtWidgets.QApplication(sys.argv)
-    main_window = MainWindow()
-    sys.exit(app.exec_())
+    def set_not_fix(self, state):
+        self.is_not_fixed = state
+
+    def show_interface(self, state):
+        assert isinstance(self.interface_frame, QFrame)
+        self.is_show_panel = state
+        if state:
+            self.interface_frame.show()
+        else:
+            self.interface_frame.hide()
+
+    def hide_interface(self):
+        self.show_interface(False)
