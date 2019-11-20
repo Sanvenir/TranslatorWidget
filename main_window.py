@@ -133,12 +133,11 @@ class MainWindow(QMainWindow):
         if self.is_show_panel or not self.is_not_fixed:
             return
         screen = self.desktop.screenGeometry(self.currentScreen)
-        center = screen.right() + screen.left() >> 1
         if self.currentPosition == 0:
-            self.move(center - self.width(), self.y())
+            self.move(screen.right() - self.width() - 100, self.y())
             self.currentPosition = 1
         else:
-            self.move(center, self.y())
+            self.move(screen.left() + 100, self.y())
             self.currentPosition = 0
 
     def closeEvent(self, event: PySide2.QtGui.QCloseEvent):
@@ -162,6 +161,7 @@ class MainWindow(QMainWindow):
             screen.top(),
             max(500, screen.width() // 5),
             screen.height())
+        self.move(screen.right() - self.width() - 100, self.y())
 
     def _translate(self):
         assert isinstance(self.trans_label, QLabel)
