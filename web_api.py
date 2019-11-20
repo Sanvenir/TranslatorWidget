@@ -67,6 +67,16 @@ class YouDaoRequest(WebRequest):
         if not app_key or not app_secret:
             raise ConfigException()
         data = {'from': 'auto', 'to': 'zh-CHS', 'signType': 'v3'}
+
+        def is_contains_chinese(strs):
+            for _char in strs:
+                if '\u4e00' <= _char <= '\u9fa5':
+                    return True
+            return False
+
+        if is_contains_chinese(query):
+            data["to"] = 'en'
+
         curtime = str(int(self.get_web_time()))
         data['curtime'] = curtime
         salt = str(uuid.uuid1())

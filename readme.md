@@ -45,12 +45,9 @@ When you copy some text, the translation will show and be selected automatically
 your screen. You can copy this text, and you can also click the text once to cancel copy.
 
 Toggle the check box "Show Interface" on the left-bottom bar will show some simple 
-settings and a input editor of widget.
+settings.
 
 - Check box "Clip" decides whether the widget receive copy text in the clipboard.
 - Check box "Top" decides whether the widget is always on the top.
 - Slider decides the opacity of the interface frame.
 - Button "Clear" can clear the content of left-top translation.
-
-Also, you can enter text in the input editor in the interface frame. The translation
-will also be shown at left-top of the screen.

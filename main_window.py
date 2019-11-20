@@ -5,9 +5,9 @@ import sys
 import PySide2
 from PySide2 import QtCore
 from PySide2.QtCore import QObject, SIGNAL, SLOT, QFile, QPoint
-from PySide2.QtGui import QGuiApplication, QIcon
+from PySide2.QtGui import QGuiApplication
 from PySide2.QtUiTools import QUiLoader
-from PySide2.QtWidgets import QCheckBox, QFrame, QLabel, QSlider, QMessageBox, QTextEdit, QPushButton, QDesktopWidget, \
+from PySide2.QtWidgets import QCheckBox, QFrame, QLabel, QSlider, QMessageBox, QPushButton, QDesktopWidget, \
     QMainWindow
 
 import config_parser
@@ -31,7 +31,6 @@ class MainWindow(QMainWindow):
             # Components
             self.clipboard = QGuiApplication.clipboard()
             self.desktop = QDesktopWidget()
-            self.origin_text = self.findChild(QTextEdit, "originEdit")
             self.trans_label = self.findChild(QLabel, "transLabel")
             self.transparent_slider = self.findChild(QSlider, "transparentSlider")
             self.interface_frame = self.findChild(QFrame, "interfaceFrame")
@@ -55,7 +54,7 @@ class MainWindow(QMainWindow):
             self.config = config_parser.Configuration()
             self.trans_request = web_api.YouDaoRequest(self.config)
             self.translate_thread = threads.TranslatorThread(
-                self.config, self.trans_request, self.get_origin_text, self)
+                self.config, self.trans_request, self.get_clip_text, self)
 
             # initialize
             self._initialize()
@@ -66,14 +65,12 @@ class MainWindow(QMainWindow):
                             self, SLOT("_set_enabled(int)"))
             QObject.connect(self.on_top_box, SIGNAL("stateChanged(int)"),
                             self, SLOT("_set_on_top(int)"))
-            QObject.connect(self.origin_text, SIGNAL("textChanged()"),
-                            self, SLOT("translate()"))
             QObject.connect(self.translate_thread, SIGNAL("finished()"),
                             self, SLOT("_translate()"))
             QObject.connect(self.transparent_slider, SIGNAL("valueChanged(int)"),
                             self, SLOT("_set_transparent(int)"))
             QObject.connect(self.clipboard, SIGNAL("dataChanged()"),
-                            self, SLOT("update_text()"))
+                            self, SLOT("translate()"))
             QObject.connect(self.desktop, SIGNAL("resized(int)"),
                             self, SLOT("_set_geometry()"))
             QObject.connect(self.hide_button, SIGNAL("clicked()"),
@@ -85,12 +82,9 @@ class MainWindow(QMainWindow):
             err_box.exec_()
             sys.exit(-1)
 
-    def get_origin_text(self):
-        return self.origin_text.toPlainText()
-
     def translate(self):
         assert isinstance(self.trans_label, QLabel)
-        if not self.get_origin_text():
+        if not self.get_clip_text():
             return
         self.trans_label.setText("Translating...")
         if self.translate_thread.isRunning():
@@ -118,7 +112,6 @@ class MainWindow(QMainWindow):
         pos = event.screenPos().toPoint()
 
         currentScreen = self.currentScreen
-        print(self.currentScreen)
         for i in range(self.desktop.screenCount()):
             if self.desktop.screenGeometry(i).left() < pos.x() < self.desktop.screenGeometry(i).right():
                 currentScreen = i
@@ -140,11 +133,12 @@ class MainWindow(QMainWindow):
         if self.is_show_panel or not self.is_not_fixed:
             return
         screen = self.desktop.screenGeometry(self.currentScreen)
+        center = screen.right() + screen.left() >> 1
         if self.currentPosition == 0:
-            self.move(screen.right() - self.width(), self.y())
+            self.move(center - self.width(), self.y())
             self.currentPosition = 1
         else:
-            self.move(screen.left(), self.y())
+            self.move(center, self.y())
             self.currentPosition = 0
 
     def closeEvent(self, event: PySide2.QtGui.QCloseEvent):

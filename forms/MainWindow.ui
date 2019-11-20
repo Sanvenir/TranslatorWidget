@@ -131,28 +131,6 @@
      </property>
      <layout class="QVBoxLayout" name="verticalLayout_2">
       <item>
-       <widget class="QTextEdit" name="originEdit">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="maximumSize">
-         <size>
-          <width>16777215</width>
-          <height>50</height>
-         </size>
-        </property>
-        <property name="font">
-         <font>
-          <family>等线</family>
-          <pointsize>10</pointsize>
-         </font>
-        </property>
-       </widget>
-      </item>
-      <item>
        <widget class="Line" name="line1">
         <property name="orientation">
          <enum>Qt::Horizontal</enum>
@@ -348,22 +326,6 @@
     <hint type="destinationlabel">
      <x>147</x>
      <y>148</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>clearButton</sender>
-   <signal>clicked()</signal>
-   <receiver>originEdit</receiver>
-   <slot>clear()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>174</x>
-     <y>763</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>147</x>
-     <y>678</y>
     </hint>
    </hints>
   </connection>

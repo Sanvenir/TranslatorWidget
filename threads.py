@@ -63,7 +63,6 @@ class TranslatorThread(QThread):
         self.result = None
 
     def run(self):
-        sleep(1)
         query = self.query()
         if not query:
             return
