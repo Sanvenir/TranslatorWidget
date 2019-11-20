@@ -42,34 +42,41 @@ from time import sleep
 
 from PySide2.QtCore import QThread
 from PySide2.QtWidgets import QMessageBox
+from googletrans import Translator
 
 import config_parser
-import web_api
-from exceptions import TranslatorException
 
 
 class TranslatorThread(QThread):
+    config = config_parser.Configuration()
+    translator = Translator(service_urls=config.service_urls)
+
     def __init__(
             self,
-            config: config_parser.Configuration,
-            trans_request: web_api.WebRequest,
             query_method,
             parent=None
     ):
         super().__init__(parent)
-        self.config = config
-        self.trans_request = trans_request
         self.query = query_method
         self.result = None
 
     def run(self):
-        sleep(1)
         query = self.query()
         if not query:
             return
         try:
-            self.result = self.trans_request.connect(query)
-        except TranslatorException as e:
+            dest = self.config.target \
+                if self.translator.detect(query).lang == self.config.native \
+                else self.config.native
+            translation = self.translator.translate(query, dest=dest)
+            if translation.extra_data.get("all-translations") is not None:
+                self.result = "\n\n".join([
+                    "{}: {}".format(record[0], "; ".join(record[1]))
+                    for record in translation.extra_data.get("all-translations")
+                ])
+            else:
+                self.result = self.translator.translate(query, dest=dest).text
+        except Exception as e:
             err_box = QMessageBox(self.parent())
             err_box.setText(str(e))
             err_box.exec_()

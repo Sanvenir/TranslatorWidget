@@ -29,6 +29,9 @@ class SystemTray(QSystemTrayIcon):
         QObject.connect(self.clear_action, SIGNAL("triggered()"),
                         self.parent.clear_button, SLOT("click()"))
 
+        QObject.connect(self.enable_action, SIGNAL("triggered(bool)"),
+                        self.parent, SLOT("set_enable(bool)"))
+
         QObject.connect(self.on_top_action, SIGNAL("triggered(bool)"),
                         self.parent, SLOT("set_on_top(bool)"))
 
