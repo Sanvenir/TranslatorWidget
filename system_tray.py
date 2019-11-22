@@ -38,6 +38,9 @@ class SystemTray(QSystemTrayIcon):
         QObject.connect(self.not_fix_action, SIGNAL("triggered(bool)"),
                         self.parent, SLOT("set_not_fix(bool)"))
 
+        QObject.connect(self.enable_action, SIGNAL("triggered(bool)"),
+                        self.parent, SLOT("set_enable(bool)"))
+
         QObject.connect(close_action, SIGNAL("triggered()"),
                         self.parent, SLOT("close()"))
 
