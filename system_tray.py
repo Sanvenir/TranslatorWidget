@@ -24,6 +24,9 @@ class SystemTray(QSystemTrayIcon):
         self.not_fix_action = QAction("Move to avoid mouse", self)
         self.not_fix_action.setCheckable(True)
 
+        self.follow_cursor_action = QAction("Move to follow mouse", self)
+        self.follow_cursor_action.setCheckable(True)
+
         close_action = QAction("Exit", self)
 
         QObject.connect(self.clear_action, SIGNAL("triggered()"),
@@ -41,6 +44,9 @@ class SystemTray(QSystemTrayIcon):
         QObject.connect(self.enable_action, SIGNAL("triggered(bool)"),
                         self.parent, SLOT("set_enable(bool)"))
 
+        QObject.connect(self.follow_cursor_action, SIGNAL("triggered(bool)"),
+                        self.parent, SLOT("set_follow_cursor(bool)"))
+
         QObject.connect(close_action, SIGNAL("triggered()"),
                         self.parent, SLOT("close()"))
 
@@ -52,6 +58,7 @@ class SystemTray(QSystemTrayIcon):
             self.on_top_action,
             self.not_fix_action,
             self.show_panel_action,
+            self.follow_cursor_action,
             close_action])
         self.setContextMenu(menu)
 

@@ -1,10 +1,11 @@
 import os
 import re
 import sys
+import threading
 
 import PySide2
-from PySide2 import QtCore
-from PySide2.QtCore import QObject, SIGNAL, SLOT, QFile, QPoint
+from PySide2 import QtCore, QtGui
+from PySide2.QtCore import QObject, SIGNAL, SLOT, QFile, QPoint, QThread
 from PySide2.QtGui import QGuiApplication
 from PySide2.QtUiTools import QUiLoader
 from PySide2.QtWidgets import QCheckBox, QFrame, QLabel, QSlider, QMessageBox, QPushButton, QDesktopWidget, \
@@ -49,6 +50,7 @@ class MainWindow(QMainWindow):
             self.is_show_panel = True
             self.is_not_fixed = True
             self.is_grab = False
+            self.is_follow_cursor = False
 
             # Instances
             self.config = config_parser.Configuration()
@@ -90,9 +92,15 @@ class MainWindow(QMainWindow):
         if self.translate_thread.isRunning():
             self.translate_thread.exit(self.translate_thread.exec_())
         self.translate_thread.start()
+        if not self.is_follow_cursor:
+            return
 
-    def update_text(self):
-        self.origin_text.setText(self.get_clip_text())
+        if self.is_show_panel:
+            return
+        pos = QtGui.QCursor().pos()
+        self.move(pos)
+        self.check_screen()
+        self.move(pos)
 
     def get_clip_text(self):
         text = self.clipboard.text()
@@ -109,11 +117,19 @@ class MainWindow(QMainWindow):
     def mouseMoveEvent(self, event: PySide2.QtGui.QMouseEvent):
         if not self.is_grab:
             return
+        self.check_screen()
         pos = event.screenPos().toPoint()
 
+        if pos.x() < self.geometry().left():
+            self.move(self.pos() + QPoint(pos.x() - self.geometry().left(), 0))
+        elif pos.x() > self.geometry().right():
+            self.move(self.pos() + QPoint(pos.x() - self.geometry().right(), 0))
+
+    def check_screen(self):
         currentScreen = self.currentScreen
         for i in range(self.desktop.screenCount()):
-            if self.desktop.screenGeometry(i).left() < pos.x() < self.desktop.screenGeometry(i).right():
+            if self.desktop.screenGeometry(i).left() < self.pos().x() and\
+                    self.pos().x() + self.geometry().width() < self.desktop.screenGeometry(i).right():
                 currentScreen = i
                 break
         if currentScreen != self.currentScreen:
@@ -121,24 +137,25 @@ class MainWindow(QMainWindow):
             screen = self.desktop.screenGeometry(currentScreen)
             self.setGeometry(self.x(), screen.top(), self.width(), screen.height())
 
-        if pos.x() < self.geometry().left():
-            self.move(self.pos() + QPoint(pos.x() - self.geometry().left(), 0))
-        elif pos.x() > self.geometry().right():
-            self.move(self.pos() + QPoint(pos.x() - self.geometry().right(), 0))
-
     def mouseReleaseEvent(self, event: PySide2.QtGui.QMouseEvent):
         self.is_grab = False
+
+    def move_from_cursor(self):
+        screen = self.desktop.screenGeometry(self.currentScreen)
+        while self.underMouse():
+            if self.geometry().left() < screen.left() + 100:
+                self.currentPosition = 0
+            elif self.geometry().right() > screen.right() - 100:
+                self.currentPosition = 1
+            if self.currentPosition == 0:
+                self.move(self.pos() + QPoint(1, 0))
+            else:
+                self.move(self.pos() + QPoint(-1, 0))
 
     def enterEvent(self, event: PySide2.QtGui.QMouseEvent):
         if self.is_show_panel or not self.is_not_fixed:
             return
-        screen = self.desktop.screenGeometry(self.currentScreen)
-        if self.currentPosition == 0:
-            self.move(screen.right() - self.width() - 100, self.y())
-            self.currentPosition = 1
-        else:
-            self.move(screen.left() + 100, self.y())
-            self.currentPosition = 0
+        threading.Thread(target=self.move_from_cursor).start()
 
     def closeEvent(self, event: PySide2.QtGui.QCloseEvent):
         sys.exit(0)
@@ -201,10 +218,14 @@ class MainWindow(QMainWindow):
     def show_interface(self, state):
         assert isinstance(self.interface_frame, QFrame)
         self.is_show_panel = state
+        self.move(self.pos().x(), 0)
         if state:
             self.interface_frame.show()
         else:
             self.interface_frame.hide()
+
+    def set_follow_cursor(self, state):
+        self.is_follow_cursor = state
 
     def hide_interface(self):
         self.show_interface(False)

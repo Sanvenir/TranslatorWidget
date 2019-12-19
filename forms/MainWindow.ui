@@ -22,6 +22,9 @@
     <height>0</height>
    </size>
   </property>
+  <property name="mouseTracking">
+   <bool>true</bool>
+  </property>
   <property name="tabletTracking">
    <bool>true</bool>
   </property>
@@ -98,8 +101,17 @@
        <pointsize>16</pointsize>
       </font>
      </property>
+     <property name="mouseTracking">
+      <bool>true</bool>
+     </property>
+     <property name="tabletTracking">
+      <bool>true</bool>
+     </property>
      <property name="contextMenuPolicy">
       <enum>Qt::CustomContextMenu</enum>
+     </property>
+     <property name="autoFillBackground">
+      <bool>false</bool>
      </property>
      <property name="scaledContents">
       <bool>true</bool>
@@ -120,6 +132,12 @@
    </item>
    <item>
     <widget class="QFrame" name="interfaceFrame">
+     <property name="mouseTracking">
+      <bool>true</bool>
+     </property>
+     <property name="tabletTracking">
+      <bool>true</bool>
+     </property>
      <property name="autoFillBackground">
       <bool>true</bool>
      </property>
@@ -166,6 +184,12 @@
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
+        </property>
+        <property name="mouseTracking">
+         <bool>true</bool>
+        </property>
+        <property name="tabletTracking">
+         <bool>true</bool>
         </property>
         <property name="autoFillBackground">
          <bool>true</bool>
